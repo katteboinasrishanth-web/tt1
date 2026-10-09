@@ -8,8 +8,8 @@ services:
     healthCheckPath: /api/tables
     envVars:
       - key: SPRING_DATASOURCE_URL
-        sync: false
+        value: "jdbc:mysql://tt1-katteboinasrishanthya-ff69.i.aivencloud.com:20037/restaurant_db?sslMode=REQUIRED&allowPublicKeyRetrieval=true&serverTimezone=UTC"
       - key: SPRING_DATASOURCE_USERNAME
-        sync: false
+        value: avnadmin
       - key: SPRING_DATASOURCE_PASSWORD
         sync: false
