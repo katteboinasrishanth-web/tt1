@@ -47,7 +47,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <footer className="footer">tt1 · Restaurant Table Reservation System</footer>
+      <footer className="footer">Dine · Restaurant Table Reservation System</footer>
     </div>
   )
 }

@@ -23,7 +23,7 @@ export default function Navbar() {
   return (
     <header className="navbar">
       <Link to="/" className="brand">
-        🍽️ <b>tt1</b> <span>Reservations</span>
+        🍽️ <b>Dine</b> <span>Reservations</span>
       </Link>
       <nav className="nav-links">
         {link('/', 'Home')}

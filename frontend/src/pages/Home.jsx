@@ -77,7 +77,7 @@ export default function Home() {
     <div className="page">
       <section className="hero">
         <h1>
-          Reserve your table at <span className="accent">tt1</span>
+          Reserve your table at <span className="accent">Dine</span>
         </h1>
         <p className="muted">
           Multi-table combos for large groups, smart best-fit seating and occasion mode with
