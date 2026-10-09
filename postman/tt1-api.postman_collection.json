@@ -1,0 +1,627 @@
+{
+  "info": {
+    "name": "tt1 · Restaurant Reservation API (full token flow)",
+    "_postman_id": "b1c7d4e2-6a3f-4c21-9d55-tt1fullflow0",
+    "description": "End-to-end flow for the tt1 reservation API.\n\nRun the folders in order (or run the whole collection). Each request that returns a token saves it as a collection variable, so the next request authenticates automatically:\n\n1. Auth (customer) - register -> login -> customerToken\n2. Tables & combos - public reads, `combos` also captures tableIds for booking\n3. Reservations - create (Bearer {{customerToken}}), list mine, cancel\n4. Admin auth - login -> adminToken\n5. Admin tables - full CRUD with adminToken\n6. Admin reservations - list, filter by date, change status\n7. Admin prep board - prep-ready task list\n\nBase URL comes from the `baseUrl` variable ({{baseUrl}}).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "customerEmail", "value": "postman.user@example.com", "type": "string" },
+    { "key": "customerPassword", "value": "secret123", "type": "string" },
+    { "key": "customerName", "value": "Postman User", "type": "string" },
+    { "key": "customerPhone", "value": "9876543210", "type": "string" },
+    { "key": "adminUsername", "value": "sri", "type": "string" },
+    { "key": "adminPassword", "value": "sri123", "type": "string" },
+    { "key": "bookingDate", "value": "", "type": "string" },
+    { "key": "bookingTime", "value": "19:00", "type": "string" },
+    { "key": "people", "value": "2", "type": "string" },
+    { "key": "occasion", "value": "NONE", "type": "string" },
+    { "key": "customerToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "bookedTableIds", "value": "", "type": "string" },
+    { "key": "reservationId", "value": "", "type": "string" },
+    { "key": "tableId", "value": "", "type": "string" },
+    { "key": "newTableNumber", "value": "P1", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Default bookingDate to today so {{bookingDate}} never sends an empty value.",
+          "if (!pm.collectionVariables.get('bookingDate')) {",
+          "  const d = new Date();",
+          "  const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];",
+          "  pm.collectionVariables.set('bookingDate', iso);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1 · Auth (customer)",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created (or 409 if the email already exists)', () => pm.expect([201, 409]).to.include(pm.response.code));",
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.collectionVariables.set('customerToken', json.token); }",
+                  "else { console.warn('Email already registered - run the Login request next to get a token.'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{customerName}}\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\",\n  \"phone\": \"{{customerPhone}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Creates the customer and returns { token, role, user }. Token is saved as customerToken. Re-running the collection returns 409 for the same email - that is fine, just run Login next."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('role is CUSTOMER', () => pm.expect(json.role).to.eql('CUSTOMER'));",
+                  "pm.collectionVariables.set('customerToken', json.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Customer login. Overwrites customerToken (needed after register, or when the token expired)."
+          }
+        },
+        {
+          "name": "My Reservations (needs token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK with a token', () => pm.response.to.have.status(200));",
+                  "pm.test('token is a list', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/api/reservations/mine",
+            "description": "Proves the customer token is accepted."
+          }
+        },
+        {
+          "name": "My Reservations without token (should fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/reservations/mine",
+            "description": "Negative check: no Authorization header must be rejected."
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('customerToken', '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/api/auth/logout",
+            "description": "Invalidates the token server-side. Run 'Login' again afterwards to keep testing authenticated calls."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Tables & combos (public)",
+      "item": [
+        {
+          "name": "All tables",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const tables = pm.response.json();",
+                  "pm.test('tables were seeded', () => pm.expect(tables.length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tables"
+          }
+        },
+        {
+          "name": "Available tables for slot",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tables/available?date={{bookingDate}}&time={{bookingTime}}&numberOfPeople={{people}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tables", "available"],
+              "query": [
+                { "key": "date", "value": "{{bookingDate}}" },
+                { "key": "time", "value": "{{bookingTime}}" },
+                { "key": "numberOfPeople", "value": "{{people}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Combos & best fit (captures tableIds)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const suggestions = pm.response.json();",
+                  "pm.test('suggestions returned', () => pm.expect(suggestions.length).to.be.above(0));",
+                  "pm.test('best fit wastes fewest seats', () => {",
+                  "  const wasted = suggestions.map(s => s.wastedSeats);",
+                  "  pm.expect(wasted[0]).to.eql(Math.min.apply(null, wasted));",
+                  "});",
+                  "if (suggestions.length) {",
+                  "  pm.collectionVariables.set('bookedTableIds', JSON.stringify(suggestions[0].tableIds));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tables/combos?date={{bookingDate}}&time={{bookingTime}}&numberOfPeople={{people}}&occasion={{occasion}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tables", "combos"],
+              "query": [
+                { "key": "date", "value": "{{bookingDate}}" },
+                { "key": "time", "value": "{{bookingTime}}" },
+                { "key": "numberOfPeople", "value": "{{people}}" },
+                { "key": "occasion", "value": "{{occasion}}" }
+              ]
+            },
+            "description": "Ranked single + multi-table (combo) suggestions. The first suggestion's tableIds are stored in bookedTableIds for the booking request."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · Reservations (Bearer customerToken)",
+      "item": [
+        {
+          "name": "Create reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('status is PENDING', () => pm.expect(json.status).to.eql('PENDING'));",
+                  "pm.collectionVariables.set('reservationId', json.reservationId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableIds\": {{bookedTableIds}},\n  \"date\": \"{{bookingDate}}\",\n  \"time\": \"{{bookingTime}}\",\n  \"numberOfPeople\": {{people}},\n  \"occasion\": \"{{occasion}}\",\n  \"occasionNote\": \"Booked from Postman\"\n}"
+            },
+            "url": "{{baseUrl}}/api/reservations",
+            "description": "Books the tables captured by the combos request. Send tableIds (1 or 2 entries) for single and combo bookings; tableId works too for the simple case."
+          }
+        },
+        {
+          "name": "Double booking same slot (should fail 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('409 Conflict', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableIds\": {{bookedTableIds}},\n  \"date\": \"{{bookingDate}}\",\n  \"time\": \"{{bookingTime}}\",\n  \"numberOfPeople\": {{people}}\n}"
+            },
+            "url": "{{baseUrl}}/api/reservations",
+            "description": "Negative check: the same tables must not be bookable twice in the same dining window."
+          }
+        },
+        {
+          "name": "My reservations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('contains the new booking', () => {",
+                  "  const id = pm.collectionVariables.get('reservationId');",
+                  "  const list = pm.response.json();",
+                  "  pm.expect(list.some(r => String(r.reservationId) === String(id))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/api/reservations/mine"
+          }
+        },
+        {
+          "name": "Cancel reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status is CANCELLED', () => pm.expect(pm.response.json().status).to.eql('CANCELLED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/api/reservations/mine/{{reservationId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 · Admin auth",
+      "item": [
+        {
+          "name": "Admin login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('role is ADMIN', () => pm.expect(json.role).to.eql('ADMIN'));",
+                  "pm.collectionVariables.set('adminToken', json.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/auth/login",
+            "description": "Default admin sri / sri123. Token saved as adminToken."
+          }
+        },
+        {
+          "name": "Admin login with wrong password (should fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"wrong-password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/auth/login"
+          }
+        },
+        {
+          "name": "Add table without admin token (should fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableNumber\": \"NOPE\",\n  \"capacity\": 4,\n  \"status\": \"AVAILABLE\",\n  \"zone\": \"MAIN\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/tables",
+            "description": "Negative check: table management is admin-only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 · Admin tables CRUD",
+      "item": [
+        {
+          "name": "Add table",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('tableId', json.tableId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableNumber\": \"{{newTableNumber}}\",\n  \"capacity\": 4,\n  \"status\": \"AVAILABLE\",\n  \"zone\": \"MAIN\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/tables",
+            "description": "Creates a table and stores its tableId for the update/delete steps."
+          }
+        },
+        {
+          "name": "Update table",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('capacity updated', () => pm.expect(pm.response.json().capacity).to.eql(6));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableNumber\": \"{{newTableNumber}}\",\n  \"capacity\": 6,\n  \"status\": \"AVAILABLE\",\n  \"zone\": \"WINDOW\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/tables/{{tableId}}"
+          }
+        },
+        {
+          "name": "Delete table",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/admin/tables/{{tableId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6 · Admin reservations",
+      "item": [
+        {
+          "name": "All reservations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('is a list', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/admin/reservations"
+          }
+        },
+        {
+          "name": "Reservations by date",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/reservations/date?date={{bookingDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "reservations", "date"],
+              "query": [{ "key": "date", "value": "{{bookingDate}}" }]
+            }
+          }
+        },
+        {
+          "name": "Set status (CONFIRMED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status is CONFIRMED', () => pm.expect(pm.response.json().status).to.eql('CONFIRMED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"CONFIRMED\" }" },
+            "url": "{{baseUrl}}/api/admin/reservations/{{reservationId}}/status",
+            "description": "Valid statuses: CONFIRMED, CANCELLED, COMPLETED."
+          }
+        },
+        {
+          "name": "Set status (COMPLETED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status is COMPLETED', () => pm.expect(pm.response.json().status).to.eql('COMPLETED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"COMPLETED\" }" },
+            "url": "{{baseUrl}}/api/admin/reservations/{{reservationId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7 · Admin prep board",
+      "item": [
+        {
+          "name": "Prep board",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const board = pm.response.json();",
+                  "pm.test('has task counters', () => pm.expect(board).to.have.property('taskCount'));",
+                  "pm.test('tasks are ordered by prep-ready time', () => {",
+                  "  const times = (board.tasks || []).map(t => t.prepReadyTime);",
+                  "  const sorted = times.slice().sort();",
+                  "  pm.expect(times).to.eql(sorted);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/prep-board?date={{bookingDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "prep-board"],
+              "query": [{ "key": "date", "value": "{{bookingDate}}" }]
+            },
+            "description": "Prep list ordered by prep-ready time (slot - occasion setup buffer). Drop the date query to get today."
+          }
+        }
+      ]
+    }
+  ]
+}
