@@ -14,7 +14,8 @@ Browser → Vercel (React SPA) → /api proxy → Render (Spring Boot Docker) �
 | Database | Aiven MySQL | Database `restaurant_db`. |
 
 ## 1. Database (Aiven MySQL)
-- Server: `megh-mysql-megh.k.aivencloud.com`, port `14776`, SSL required.
+- Server: `tt1-katteboinasrishanthya-ff69.i.aivencloud.com`, port `20037`, SSL required.
+  - Use **20037** (classic MySQL port). Do NOT use 20041 — that is the X Protocol port.
 - Database: `restaurant_db` (already created).
 - User: `avnadmin` (password from the Aiven console).
 - Tables are auto-created by Hibernate (`ddl-auto=update`) and the default
@@ -28,7 +29,7 @@ Create a **Web Service** (Docker) from this repo:
 - Environment variables:
   | Key | Value |
   |-----|-------|
-  | `SPRING_DATASOURCE_URL` | `jdbc:mysql://megh-mysql-megh.k.aivencloud.com:14776/restaurant_db?sslMode=REQUIRED&allowPublicKeyRetrieval=true&serverTimezone=UTC` |
+  | `SPRING_DATASOURCE_URL` | `jdbc:mysql://tt1-katteboinasrishanthya-ff69.i.aivencloud.com:20037/restaurant_db?sslMode=REQUIRED&allowPublicKeyRetrieval=true&serverTimezone=UTC` |
   | `SPRING_DATASOURCE_USERNAME` | `avnadmin` |
   | `SPRING_DATASOURCE_PASSWORD` | *(Aiven password — keep secret)* |
 
