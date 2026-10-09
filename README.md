@@ -1,5 +1,11 @@
 # tt1 · Restaurant Table Reservation System
 
+## Live Deployment
+- **Website (Frontend):** https://tt1-bice.vercel.app
+- **API (Backend):** https://tt1-backend-74dk.onrender.com/api
+
+See [PROJECT.md](./PROJECT.md) for the full project summary and links.
+
 Full-stack reservation system built exactly to the assigned flow:
 
 ```
